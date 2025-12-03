@@ -25,12 +25,12 @@ Your website becomes a neural endpoint. Connected to reality. Processing signals
 
 ## What It Does
 
-On your schedule (every 15 minutes, hourly, daily - you choose), Synapsed:
+On your schedule (every 6 hours, hourly, daily - you choose), Synapsed:
 
 1. **Reads** - Fetches headlines from your chosen news sources (BBC, NYT, TechCrunch, Reuters, etc.)
 2. **Thinks** - Sends them to Claude AI with prompts that encode your worldview
 3. **Writes** - Generates fresh commentary in your voice
-4. **Publishes** - Commits to git, triggers deployment, goes live
+4. **Publishes** - Saves to cache file, site serves fresh content
 
 No database. No CMS. No humans in the loop. Just **synaptic automation** - your thinking, encoded once, firing forever.
 
@@ -87,19 +87,13 @@ The opening paragraph updates automatically on our chosen schedule. So does the 
          │
          ▼
 ┌─────────────────┐
-│  Git Commit     │
+│   Cache File    │  ← data/dynamic-content.json
 └────────┬────────┘
          │
          ▼
 ┌─────────────────┐
-│ Deployment      │  ← Vercel, Netlify, wherever
-│  Triggers       │
-└────────┬────────┘
-         │
-         ▼
-┌─────────────────┐
+│  Site Serves    │  ← Fresh content on every request
 │  Fresh Content  │
-│      LIVE       │
 └─────────────────┘
 ```
 
@@ -126,8 +120,8 @@ Everything needed to Synapse your site:
 
 - Next.js 14+ site
 - GitHub repo
-- [Anthropic API key](https://console.anthropic.com) (free tier works)
-- Vercel/Netlify deployment (or any git-based platform)
+- [Anthropic API key](https://console.anthropic.com)
+- Any deployment platform (Vercel, Netlify, etc.)
 
 ### Installation
 
@@ -164,7 +158,6 @@ ANTHROPIC_API_KEY=your_api_key_here
 
 Add GitHub Secrets (Settings → Secrets → Actions):
 - `ANTHROPIC_API_KEY` - Your API key
-- `VERCEL_DEPLOY_HOOK` - Webhook from Vercel project settings
 
 **5. Encode your voice**
 
@@ -228,12 +221,11 @@ Edit `.github/workflows/generate-content.yml`:
 
 ```yaml
 schedule:
-  - cron: '[INSERT YOUR SCHEDULE]'
-  # Examples:
-  # - cron: '*/15 * * * *'  # Every 15 minutes
+  - cron: '0 */6 * * *'    # Every 6 hours (recommended)
+  # Other options:
   # - cron: '0 * * * *'     # Hourly
   # - cron: '0 9 * * *'     # Daily at 9 AM
-  # - cron: '0 */6 * * *'   # Every 6 hours
+  # - cron: '0 */12 * * *'  # Every 12 hours
 ```
 
 ### Add More RSS Feeds
@@ -285,18 +277,16 @@ your-project/
 
 ### How Generation Works
 
-**Every 15 minutes:**
+**Every 6 hours (or your chosen schedule):**
 
 1. GitHub Actions wakes up
-2. Fetches BBC + NYT RSS feeds
-3. Extracts top 8 headlines from each
+2. Fetches RSS feeds from your configured sources
+3. Extracts top headlines
 4. Sends to Claude with your prompt
-5. Claude generates 2 pieces in your voice
+5. Claude generates content in your voice
 6. Saves to `data/dynamic-content.json`
-7. Commits: "Update dynamic content"
-8. Webhook triggers Vercel deployment
-9. Site rebuilds with fresh content
-10. Visitors see new text
+7. Site reads cache file on each request
+8. Visitors see fresh content
 
 **All automatic. Zero manual work.**
 
@@ -310,7 +300,7 @@ Your site never breaks, even when things fail:
 - Site continues serving content
 
 **Level 2: Cache Miss**
-- If cache file missing or >70 min old
+- If cache file missing or too old
 - Server returns hardcoded fallback
 - Indistinguishable from live content
 
@@ -366,7 +356,7 @@ Visit GitHub Actions → should see "Generate Dynamic Content" running.
 ```
 https://github.com/YOUR_USER/YOUR_REPO/actions
 ```
-Look for workflow runs every 15 minutes.
+Look for workflow runs on your chosen schedule.
 
 **Check content freshness:**
 ```bash
@@ -377,10 +367,10 @@ cat data/dynamic-content.json | jq '.generated'
 node -e "console.log((Date.now() - new Date('$(cat data/dynamic-content.json | jq -r .generated)').getTime()) / 60000, 'minutes old')"
 ```
 
-**Check deployments:**
-- Vercel dashboard should show auto-deploys
-- Message: "Update dynamic content"
-- Triggered by GitHub webhook
+**Check cache file:**
+- Open `data/dynamic-content.json`
+- Verify `generated` timestamp is recent
+- Check `fallbackUsed` is false
 
 ### Common Issues
 
@@ -388,33 +378,33 @@ node -e "console.log((Date.now() - new Date('$(cat data/dynamic-content.json | j
 - Check GitHub Actions for errors
 - Verify API key is valid
 - Test RSS feeds are reachable
-- Confirm webhook URL correct
+- Check cache file permissions
 
 **Seeing fallback content**
 - Look for `"fallbackUsed": true` in cache
 - Check error in metadata field
 - Verify Anthropic account has credits
 
-**Generation working but not deploying**
-- Check Vercel webhook URL
-- Test webhook manually with curl
-- Verify repo has push access
+**Generation working but site not updating**
+- Check cache file has fresh timestamp
+- Verify site is reading from correct path
+- Clear browser cache and retry
 
 ## Cost Breakdown
 
 **Anthropic API:**
-- 96 generations/day (every 15 min)
+- 4 generations/day (every 6 hours)
 - ~16 headlines analyzed each time
 - Claude Opus: $15 per 1M input tokens
-- **~$3-5/month**
+- **~$1-3/month** (varies by frequency)
 
 **GitHub Actions:**
 - 2,000 free minutes/month
 - ~2 minutes per run
-- 96 runs/day = ~5,760 min/month
-- **~$0-2/month over free tier**
+- 4 runs/day = ~240 min/month
+- **Free** (well within limits)
 
-**Total: ~$5/month**
+**Total: ~$1-3/month**
 
 Compare to:
 - Content writer: $500+/month
